@@ -1,8 +1,11 @@
 {
-  "name": "solbagfumbler",
-  "version": "1.0.0",
-  "dependencies": {
-    "@solana/web3.js": "^1.95.3",
-    "axios": "^1.6.7"
+    "name": "solbagfumbler",
+    "version": "1.0.0",
+    "scripts": {
+      "postinstall": "cd netlify/functions && npm install @solana/web3.js axios"
+    },
+    "dependencies": {
+      "@solana/web3.js": "^1.95.3",
+      "axios": "^1.6.7"
+    }
   }
-}
