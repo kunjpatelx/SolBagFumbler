@@ -3,23 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SolBagFumbler - Did You Fumble Your Bag?</title>
+    <title>SolBagFumbler - 8-Bit Bag Check</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>SolBagFumbler</h1>
-            <p>Track your Solana coins and see how much you fumbled, ya HODL hero!</p>
+            <p>Check yer Solana loot and see if ya fumbled, player!</p>
         </header>
         <main>
             <section class="wallet-input">
-                <input type="text" id="walletAddress" placeholder="Enter your Solana wallet address">
-                <button onclick="fetchWalletData()">Scan My Bag!</button>
+                <input type="text" id="walletAddress" placeholder="Drop yer Solana wallet">
+                <button onclick="fetchWalletData()">Start Game!</button>
             </section>
             <section id="results" class="results hidden">
-                <h2>Your Coin Chronicles</h2>
+                <h2>Yer Coin Quest</h2>
                 <div id="coinList"></div>
                 <canvas id="fumbleChart"></canvas>
             </section>
@@ -27,6 +28,7 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/@solana/web3.js@1.95.3"></script>
     <script src="script.js"></script>
 </body>
 </html>

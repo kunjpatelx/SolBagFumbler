@@ -1,68 +1,89 @@
+const connection = new solanaWeb3.Connection("https://api.mainnet-beta.solana.com");
+
 async function fetchWalletData() {
     const walletAddress = document.getElementById("walletAddress").value.trim();
-    if (!walletAddress) {
-        alert("Yo, enter a wallet address first!");
+    if (!walletAddress || walletAddress.length < 32) {
+        alert("Hey, player! Drop a real Solana wallet address!");
         return;
     }
 
     document.getElementById("results").classList.remove("hidden");
     const coinList = document.getElementById("coinList");
-    coinList.innerHTML = "Scanning the blockchain, hold tight...";
+    coinList.innerHTML = "Loading yer loot...";
 
     try {
-        // Step 1: Fetch Solana transactions (simplified with Solscan API)
-        const solscanResponse = await axios.get(`https://api.solscan.io/account/transactions?address=${walletAddress}&limit=10`);
-        const transactions = solscanResponse.data.data;
+        // Step 1: Fetch token accounts
+        const publicKey = new solanaWeb3.PublicKey(walletAddress);
+        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, { programId: solanaWeb3.TOKEN_PROGRAM_ID });
 
-        // Step 2: Filter coins wallet interacted with
-        const coins = new Set();
-        transactions.forEach(tx => {
-            if (tx.token_transfers) {
-                tx.token_transfers.forEach(transfer => {
-                    coins.add(transfer.token_symbol || transfer.token_address);
+        // Step 2: Get coins wallet interacted with
+        const coins = new Map();
+        tokenAccounts.value.forEach(account => {
+            const mint = account.account.data.parsed.info.mint;
+            const amount = account.account.data.parsed.info.tokenAmount.uiAmount;
+            if (amount > 0) coins.set(mint, { amount });
+        });
+
+        // Step 3: Fetch recent transactions for buy/sell data
+        const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 50 });
+        const txs = await connection.getParsedTransactions(signatures.map(sig => sig.signature));
+        txs.forEach(tx => {
+            if (tx?.meta?.postTokenBalances) {
+                tx.meta.postTokenBalances.forEach(balance => {
+                    const mint = balance.mint;
+                    if (coins.has(mint)) {
+                        coins.get(mint).lastTx = tx.blockTime;
+                    }
                 });
             }
         });
 
-        // Step 3: Get prices and "fumbled" data
+        // Step 4: Price and fumble calc
         const coinData = await Promise.all(
-            Array.from(coins).map(async (coin) => {
-                const buyTx = transactions.find(tx => tx.token_transfers?.some(t => t.token_symbol === coin && t.type === "transfer_in"));
-                const sellTx = transactions.find(tx => tx.token_transfers?.some(t => t.token_symbol === coin && t.type === "transfer_out"));
-                const buyPrice = buyTx ? await getHistoricalPrice(coin, buyTx.block_time) : 0;
-                const sellPrice = sellTx ? await getHistoricalPrice(coin, sellTx.block_time) : 0;
-                const currentPrice = await getCurrentPrice(coin);
-                const fumbled = sellPrice && currentPrice > sellPrice ? (currentPrice - sellPrice) * (sellTx?.token_transfers[0]?.amount || 0) : 0;
+            Array.from(coins.entries()).map(async ([mint, info]) => {
+                const coinId = mint === "So11111111111111111111111111111111111111112" ? "solana" : mint; // Simplified, needs token mapping
+                const buyPrice = info.lastTx ? await getHistoricalPrice(coinId, info.lastTx) : 0;
+                const currentPrice = await getCurrentPrice(coinId);
+                const fumbled = currentPrice > buyPrice ? (currentPrice - buyPrice) * info.amount : 0;
+                const roi = buyPrice ? ((currentPrice - buyPrice) / buyPrice * 100).toFixed(2) : 0;
 
-                return { coin, buyPrice, sellPrice, currentPrice, fumbled };
+                return { coin: coinId.slice(0, 8), buyPrice, currentPrice, fumbled, roi };
             })
         );
 
-        // Step 4: Display results with playful tone
+        // Step 5: Display with NES flair
         coinList.innerHTML = coinData.map(data => `
-            <p>${data.coin}: Bought at $${data.buyPrice.toFixed(2)} | Sold at $${data.sellPrice.toFixed(2)} | Now $${data.currentPrice.toFixed(2)}
-            ${data.fumbled > 0 ? `<br><span style="color: #ff007a">Fumbled $${data.fumbled.toFixed(2)}! Oof, you left some gains on the table!</span>` : ""}
+            <p>${data.coin}: Grabbed at $${data.buyPrice.toFixed(2)} | Now $${data.currentPrice.toFixed(2)}
+            <br>ROI: ${data.roi}% - ${data.roi > 0 ? "Score!" : "Ouch!"}
+            ${data.fumbled > 0 ? `<br><span style="color: #ff00ff">Fumbled $${data.fumbled.toFixed(2)}! Shoulda HODLed, dude!</span>` : ""}
             </p>
         `).join("");
 
-        // Step 5: Fun chart
+        // Step 6: Chart it up
         drawChart(coinData);
     } catch (error) {
-        coinList.innerHTML = "Oops, something crashed! Maybe the blockchain’s laughing at us.";
+        coinList.innerHTML = "Game over! Blockchain glitch—try again, hero!";
         console.error(error);
     }
 }
 
 async function getHistoricalPrice(coin, timestamp) {
-    // CoinGecko API (simplified - needs token ID, not symbol)
     const date = new Date(timestamp * 1000).toISOString().split("T")[0];
-    const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${coin.toLowerCase()}/history?date=${date}`);
-    return response.data.market_data?.current_price?.usd || 0;
+    try {
+        const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${coin}/history?date=${date}`);
+        return response.data.market_data?.current_price?.usd || 0;
+    } catch {
+        return 0; // Fallback if API fails
+    }
 }
 
 async function getCurrentPrice(coin) {
-    const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${coin.toLowerCase()}&vs_currencies=usd`);
-    return response.data[coin.toLowerCase()]?.usd || 0;
+    try {
+        const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd`);
+        return response.data[coin]?.usd || 0;
+    } catch {
+        return 0;
+    }
 }
 
 function drawChart(coinData) {
@@ -71,17 +92,14 @@ function drawChart(coinData) {
         type: "bar",
         data: {
             labels: coinData.map(d => d.coin),
-            datasets: [{
-                label: "Fumbled Gains ($)",
-                data: coinData.map(d => d.fumbled),
-                backgroundColor: "#ff007a",
-                borderColor: "#00ffcc",
-                borderWidth: 1
-            }]
+            datasets: [
+                { label: "Fumbled Gains ($)", data: coinData.map(d => d.fumbled), backgroundColor: "#ff00ff" },
+                { label: "ROI (%)", data: coinData.map(d => d.roi), backgroundColor: "#00ff00" }
+            ]
         },
         options: {
-            scales: { y: { beginAtZero: true, title: { display: true, text: "Missed Bucks", color: "#fff" } } },
-            plugins: { legend: { labels: { color: "#fff" } }, title: { display: true, text: "Your Fumble Hall of Fame", color: "#ccff00" } }
+            scales: { y: { beginAtZero: true, title: { display: true, text: "Score", color: "#ffff00" } } },
+            plugins: { legend: { labels: { color: "#ffff00" } }, title: { display: true, text: "Fumble-o-Tron 3000", color: "#ff00ff" } }
         }
     });
 }
