@@ -10,8 +10,8 @@ async function fetchWalletData() {
     coinList.innerHTML = "Loading yer loot...";
 
     try {
-        // Replace with your Render backend URL after deploy
-        const response = await axios.get(`https://solbagfumbler-backend.onrender.com/solana?address=${walletAddress}`);
+        // Use relative path since front-end and backend are on the same domain
+        const response = await axios.get(`/solana?address=${walletAddress}`);
         const coinData = response.data;
 
         if (!coinData || coinData.length === 0) {
