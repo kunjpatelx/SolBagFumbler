@@ -1,5 +1,3 @@
-const connection = new solanaWeb3.Connection("https://rpc.ankr.com/solana");
-
 async function fetchWalletData() {
     const walletAddress = document.getElementById("walletAddress").value.trim();
     if (!walletAddress || walletAddress.length < 32) {
@@ -12,46 +10,9 @@ async function fetchWalletData() {
     coinList.innerHTML = "Loading yer loot...";
 
     try {
-        const publicKey = new solanaWeb3.PublicKey(walletAddress);
-
-        // Fetch SOL balance and txs
-        const solBalance = await connection.getBalance(publicKey);
-        const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 10 });
-        const txs = await connection.getParsedTransactions(signatures.map(sig => sig.signature));
-
-        // Coin detection (SOL + tokens)
-        const coins = new Map([["solana", { amount: solBalance / solanaWeb3.LAMPORTS_PER_SOL, lastTx: null }]]); // SOL in SOL units
-        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, { programId: solanaWeb3.TOKEN_PROGRAM_ID });
-        tokenAccounts.value.forEach(account => {
-            const mint = account.account.data.parsed.info.mint;
-            const amount = account.account.data.parsed.info.tokenAmount.uiAmount;
-            if (amount > 0) coins.set(mint, { amount, lastTx: null });
-        });
-
-        // Latest tx timestamp for each coin
-        txs.forEach(tx => {
-            if (tx?.meta?.postTokenBalances) {
-                tx.meta.postTokenBalances.forEach(balance => {
-                    const mint = balance.mint;
-                    if (coins.has(mint) && !coins.get(mint).lastTx) coins.get(mint).lastTx = tx.blockTime;
-                });
-            } else if (!coins.get("solana").lastTx) {
-                coins.get("solana").lastTx = tx.blockTime;
-            }
-        });
-
-        // Price and fumble calc
-        const coinData = await Promise.all(
-            Array.from(coins.entries()).map(async ([mint, info]) => {
-                const coinId = mint === "So11111111111111111111111111111111111111112" ? "solana" : mint === "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" ? "usd-coin" : "unknown-" + mint.slice(0, 8);
-                const buyPrice = info.lastTx ? await getHistoricalPrice(coinId === "solana" ? "solana" : "usd-coin", info.lastTx) : 0.01; // Fallback
-                const currentPrice = await getCurrentPrice(coinId === "solana" ? "solana" : "usd-coin") || 0.01;
-                const fumbled = currentPrice > buyPrice ? (currentPrice - buyPrice) * info.amount : 0;
-                const roi = buyPrice ? ((currentPrice - buyPrice) / buyPrice * 100).toFixed(2) : 0;
-
-                return { coin: coinId.slice(0, 8), buyPrice, currentPrice, fumbled, roi };
-            })
-        );
+        // Call serverless function
+        const response = await axios.get(`/api/solana?address=${walletAddress}`);
+        const coinData = response.data;
 
         // Display with NES flair
         coinList.innerHTML = coinData.map(data => `
@@ -65,25 +26,6 @@ async function fetchWalletData() {
     } catch (error) {
         coinList.innerHTML = "Game over! Blockchain glitch—try again, hero!";
         console.error(error);
-    }
-}
-
-async function getHistoricalPrice(coin, timestamp) {
-    const date = new Date(timestamp * 1000).toISOString().split("T")[0];
-    try {
-        const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${coin}/history?date=${date}`);
-        return response.data.market_data?.current_price?.usd || 0.01;
-    } catch {
-        return 0.01; // Fallback
-    }
-}
-
-async function getCurrentPrice(coin) {
-    try {
-        const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd`);
-        return response.data[coin]?.usd || 0.01;
-    } catch {
-        return 0.01; // Fallback
     }
 }
 
