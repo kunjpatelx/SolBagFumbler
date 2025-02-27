@@ -10,9 +10,14 @@ async function fetchWalletData() {
     coinList.innerHTML = "Loading yer loot...";
 
     try {
-        // Vercel function path
-        const response = await axios.get(`/api/solana?address=${walletAddress}`);
+        // Replace with your Render backend URL after deploy
+        const response = await axios.get(`https://solbagfumbler-backend.onrender.com/solana?address=${walletAddress}`);
         const coinData = response.data;
+
+        if (!coinData || coinData.length === 0) {
+            coinList.innerHTML = "No loot found, adventurer! Try another wallet!";
+            return;
+        }
 
         coinList.innerHTML = coinData.map(data => `
             <p>${data.coin}: Snagged at $${data.buyPrice.toFixed(2)} | Now $${data.currentPrice.toFixed(2)}
@@ -23,8 +28,8 @@ async function fetchWalletData() {
 
         drawChart(coinData);
     } catch (error) {
-        coinList.innerHTML = "Game over! Blockchain glitch—try again, hero!";
-        console.error(error);
+        coinList.innerHTML = "Game over! Blockchain glitch—check the logs, hero!";
+        console.error("Fetch error:", error.response?.data || error.message);
     }
 }
 
