@@ -10,8 +10,8 @@ async function fetchWalletData() {
     coinList.innerHTML = "Loading yer loot...";
 
     try {
-        // Call Netlify function (fixed path)
-        const response = await axios.get(`/.netlify/functions/solana?address=${walletAddress}`);
+        // Vercel function path
+        const response = await axios.get(`/api/solana?address=${walletAddress}`);
         const coinData = response.data;
 
         coinList.innerHTML = coinData.map(data => `

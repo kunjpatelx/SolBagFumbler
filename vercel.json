@@ -1,9 +1,23 @@
 {
-  "version": 2,
-  "functions": {
-    "api/solana.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
+    "version": 2,
+    "builds": [
+      {
+        "src": "api/solana.js",
+        "use": "@vercel/node"
+      },
+      {
+        "src": "*.html",
+        "use": "@vercel/static"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/api/solana",
+        "dest": "/api/solana.js"
+      },
+      {
+        "src": "/(.*)",
+        "dest": "/index.html"
+      }
+    ]
   }
-}
