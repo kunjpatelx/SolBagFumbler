@@ -7,7 +7,7 @@
 body {
     font-family: 'Press Start 2P', cursive;
     background: #000;
-    color: #00ff00; /* NES green */
+    color: #00ff00;
     min-height: 100vh;
     display: flex;
     justify-content: center;
@@ -16,7 +16,6 @@ body {
     overflow: hidden;
 }
 
-/* CRT scanline effect */
 body::before {
     content: '';
     position: absolute;
@@ -39,14 +38,14 @@ body::before {
 
 header h1 {
     font-size: 2rem;
-    color: #ff00ff; /* NES pink */
+    color: #ff00ff;
     text-shadow: 2px 2px 0 #00ff00;
     margin-bottom: 10px;
 }
 
 header p {
     font-size: 0.9rem;
-    color: #ffff00; /* NES yellow */
+    color: #ffff00;
 }
 
 .wallet-input {
@@ -105,7 +104,6 @@ canvas {
     border: 3px solid #00ff00;
 }
 
-/* Mobile-friendly */
 @media (max-width: 600px) {
     header h1 { font-size: 1.5rem; }
     header p { font-size: 0.7rem; }
