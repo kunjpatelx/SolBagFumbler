@@ -1,8 +1,8 @@
 const { Connection, PublicKey, TOKEN_PROGRAM_ID } = require("@solana/web3.js");
 const axios = require("axios");
 
-exports.handler = async function (event) {
-    const walletAddress = event.queryStringParameters.address;
+module.exports = async (req, res) => {
+    const walletAddress = req.query.address;
     const connection = new Connection("https://rpc.ankr.com/solana");
 
     try {
@@ -32,7 +32,7 @@ exports.handler = async function (event) {
 
         const coinData = await Promise.all(
             Array.from(coins.entries()).map(async ([mint, info]) => {
-                const coinId = mint === "So11111111111111111111111111111111111111112" ? "solana" : "usd-coin"; // Temp mapping
+                const coinId = mint === "So11111111111111111111111111111111111111112" ? "solana" : "usd-coin";
                 const buyPrice = info.lastTx ? await getHistoricalPrice(coinId, info.lastTx) : 0.01;
                 const currentPrice = await getCurrentPrice(coinId) || 0.01;
                 const fumbled = currentPrice > buyPrice ? (currentPrice - buyPrice) * info.amount : 0;
@@ -42,16 +42,9 @@ exports.handler = async function (event) {
             })
         );
 
-        return {
-            statusCode: 200,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(coinData),
-        };
+        res.status(200).json(coinData);
     } catch (error) {
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: "Failed to fetch wallet data" }),
-        };
+        res.status(500).json({ error: "Failed to fetch wallet data" });
     }
 };
 
