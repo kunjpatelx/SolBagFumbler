@@ -10,11 +10,10 @@ async function fetchWalletData() {
     coinList.innerHTML = "Loading yer loot...";
 
     try {
-        // Call serverless function
-        const response = await axios.get(`/api/solana?address=${walletAddress}`);
+        // Call Netlify function (fixed path)
+        const response = await axios.get(`/.netlify/functions/solana?address=${walletAddress}`);
         const coinData = response.data;
 
-        // Display with NES flair
         coinList.innerHTML = coinData.map(data => `
             <p>${data.coin}: Snagged at $${data.buyPrice.toFixed(2)} | Now $${data.currentPrice.toFixed(2)}
             <br>ROI: ${data.roi}% - ${data.roi > 0 ? "Score!" : "Ouch!"}
