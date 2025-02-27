@@ -8,15 +8,21 @@ app.use(express.static(__dirname));
 
 app.get("/solana", async (req, res) => {
     const walletAddress = req.query.address;
-    const connection = new Connection("https://rpc.ankr.com/solana");
+    const connection = new Connection("https://rpc.ankr.com/solana", { commitment: "confirmed", timeout: 30000 });
+
+    console.log(`Fetching data for wallet: ${walletAddress}`);
 
     try {
         const publicKey = new PublicKey(walletAddress);
+        console.log("Getting SOL balance...");
         const solBalance = await connection.getBalance(publicKey);
+        console.log("Getting signatures...");
         const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 10 });
+        console.log("Getting transactions...");
         const txs = await connection.getParsedTransactions(signatures.map(sig => sig.signature));
 
         const coins = new Map([["solana", { amount: solBalance / 1000000000, lastTx: null }]]);
+        console.log("Getting token accounts...");
         const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, { programId: TOKEN_PROGRAM_ID });
         tokenAccounts.value.forEach(account => {
             const mint = account.account.data.parsed.info.mint;
@@ -35,6 +41,7 @@ app.get("/solana", async (req, res) => {
             }
         });
 
+        console.log("Fetching prices...");
         const coinData = await Promise.all(
             Array.from(coins.entries()).map(async ([mint, info]) => {
                 const coinId = mint === "So11111111111111111111111111111111111111112" ? "solana" : "usd-coin";
@@ -47,16 +54,18 @@ app.get("/solana", async (req, res) => {
             })
         );
 
+        console.log("Sending coin data:", coinData);
         res.status(200).json(coinData);
     } catch (error) {
-        res.status(500).json({ error: "Failed to fetch wallet data" });
+        console.error("Error in /solana:", error.message);
+        res.status(500).json({ error: "Failed to fetch wallet data", details: error.message });
     }
 });
 
 async function getHistoricalPrice(coin, timestamp) {
     const date = new Date(timestamp * 1000).toISOString().split("T")[0];
     try {
-        const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${coin}/history?date=${date}`);
+        const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${coin}/history?date=${date}`, { timeout: 10000 });
         return response.data.market_data?.current_price?.usd || 0.01;
     } catch {
         return 0.01;
@@ -65,7 +74,7 @@ async function getHistoricalPrice(coin, timestamp) {
 
 async function getCurrentPrice(coin) {
     try {
-        const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd`);
+        const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd`, { timeout: 10000 });
         return response.data[coin]?.usd || 0.01;
     } catch {
         return 0.01;
