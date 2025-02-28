@@ -10,7 +10,6 @@ async function fetchWalletData() {
     coinList.innerHTML = "Loading yer loot...";
 
     try {
-        // Use relative path since front-end and backend are on the same domain
         const response = await axios.get(`/solana?address=${walletAddress}`);
         const coinData = response.data;
 

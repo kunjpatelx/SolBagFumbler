@@ -14,13 +14,13 @@ app.get("/solana", async (req, res) => {
     }
 
     try {
-        // Fetch SOL balance from Solscan
-        console.log("[STEP 1] Fetching SOL balance from Solscan...");
-        const balanceResponse = await axios.get(`https://public-api.solscan.io/account/${walletAddress}`, {
+        // Fetch SOL balance and token data from Solscan
+        console.log("[STEP 1] Fetching wallet data from Solscan...");
+        const accountResponse = await axios.get(`https://public-api.solscan.io/account/${walletAddress}`, {
             headers: { "Accept": "application/json" },
             timeout: 10000
         });
-        const solBalance = balanceResponse.data.lamports / 1000000000; // Convert lamports to SOL
+        const solBalance = accountResponse.data.lamports / 1000000000; // Convert lamports to SOL
         console.log(`[STEP 1] SOL balance: ${solBalance} SOL`);
 
         // Fetch recent transactions
@@ -32,7 +32,7 @@ app.get("/solana", async (req, res) => {
         const txs = txResponse.data;
         console.log(`[STEP 2] Found ${txs.length} transactions`);
 
-        // Process coins (SOL only for simplicity, extendable to tokens)
+        // Process SOL data (extendable to tokens)
         const coins = new Map([["solana", { amount: solBalance, lastTx: txs.length > 0 ? txs[0].blockTime : null }]]);
         console.log(`[STEP 3] Coins processed: ${coins.size}`);
 
@@ -40,7 +40,7 @@ app.get("/solana", async (req, res) => {
         console.log("[STEP 4] Fetching prices...");
         const coinData = await Promise.all(
             Array.from(coins.entries()).map(async ([mint, info]) => {
-                const coinId = "solana"; // Hardcoded for SOL; extend for tokens later
+                const coinId = "solana"; // SOL only for now
                 const buyPrice = info.lastTx ? await getHistoricalPrice(coinId, info.lastTx) : 0.01;
                 const currentPrice = await getCurrentPrice(coinId) || 0.01;
                 const fumbled = currentPrice > buyPrice ? (currentPrice - buyPrice) * info.amount : 0;
@@ -62,8 +62,9 @@ async function getHistoricalPrice(coin, timestamp) {
     const date = new Date(timestamp * 1000).toISOString().split("T")[0];
     try {
         const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${coin}/history?date=${date}`, { timeout: 10000 });
-        console.log(`[PRICE] Historical price for ${coin} on ${date}: ${response.data.market_data?.current_price?.usd}`);
-        return response.data.market_data?.current_price?.usd || 0.01;
+        const price = response.data.market_data?.current_price?.usd || 0.01;
+        console.log(`[PRICE] Historical price for ${coin} on ${date}: ${price}`);
+        return price;
     } catch (error) {
         console.error(`[PRICE ERROR] Historical price fetch failed for ${coin}:`, error.message);
         return 0.01;
@@ -73,8 +74,9 @@ async function getHistoricalPrice(coin, timestamp) {
 async function getCurrentPrice(coin) {
     try {
         const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd`, { timeout: 10000 });
-        console.log(`[PRICE] Current price for ${coin}: ${response.data[coin]?.usd}`);
-        return response.data[coin]?.usd || 0.01;
+        const price = response.data[coin]?.usd || 0.01;
+        console.log(`[PRICE] Current price for ${coin}: ${price}`);
+        return price;
     } catch (error) {
         console.error(`[PRICE ERROR] Current price fetch failed for ${coin}:`, error.message);
         return 0.01;
