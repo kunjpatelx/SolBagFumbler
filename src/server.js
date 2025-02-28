@@ -1,9 +1,7 @@
 const express = require("express");
-const { Connection, PublicKey, TOKEN_PROGRAM_ID } = require("@solana/web3.js");
 const axios = require("axios");
 const app = express();
 
-// Serve static files from root
 app.use(express.static(__dirname));
 
 app.get("/solana", async (req, res) => {
@@ -15,47 +13,34 @@ app.get("/solana", async (req, res) => {
         return res.status(400).json({ error: "Wallet address required" });
     }
 
-    const connection = new Connection("https://rpc.ankr.com/solana", { commitment: "confirmed", timeout: 30000 });
-
     try {
-        console.log("[STEP 1] Validating public key...");
-        const publicKey = new PublicKey(walletAddress);
-        console.log("[STEP 2] Fetching SOL balance...");
-        const solBalance = await connection.getBalance(publicKey);
-        console.log(`[STEP 2] SOL balance: ${solBalance / 1000000000} SOL`);
-        console.log("[STEP 3] Fetching signatures...");
-        const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 10 });
-        console.log(`[STEP 3] Found ${signatures.length} signatures`);
-        console.log("[STEP 4] Fetching transactions...");
-        const txs = await connection.getParsedTransactions(signatures.map(sig => sig.signature));
-        console.log(`[STEP 4] Loaded ${txs.length} transactions`);
-
-        const coins = new Map([["solana", { amount: solBalance / 1000000000, lastTx: null }]]);
-        console.log("[STEP 5] Fetching token accounts...");
-        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, { programId: TOKEN_PROGRAM_ID });
-        tokenAccounts.value.forEach(account => {
-            const mint = account.account.data.parsed.info.mint;
-            const amount = account.account.data.parsed.info.tokenAmount.uiAmount;
-            if (amount > 0) coins.set(mint, { amount, lastTx: null });
+        // Fetch SOL balance from Solscan
+        console.log("[STEP 1] Fetching SOL balance from Solscan...");
+        const balanceResponse = await axios.get(`https://public-api.solscan.io/account/${walletAddress}`, {
+            headers: { "Accept": "application/json" },
+            timeout: 10000
         });
-        console.log(`[STEP 5] Found ${coins.size} coins`);
+        const solBalance = balanceResponse.data.lamports / 1000000000; // Convert lamports to SOL
+        console.log(`[STEP 1] SOL balance: ${solBalance} SOL`);
 
-        txs.forEach(tx => {
-            if (tx?.meta?.postTokenBalances) {
-                tx.meta.postTokenBalances.forEach(balance => {
-                    const mint = balance.mint;
-                    if (coins.has(mint) && !coins.get(mint).lastTx) coins.get(mint).lastTx = tx.blockTime;
-                });
-            } else if (!coins.get("solana").lastTx) {
-                coins.get("solana").lastTx = tx.blockTime;
-            }
+        // Fetch recent transactions
+        console.log("[STEP 2] Fetching recent transactions from Solscan...");
+        const txResponse = await axios.get(`https://public-api.solscan.io/account/transactions?account=${walletAddress}&limit=10`, {
+            headers: { "Accept": "application/json" },
+            timeout: 10000
         });
+        const txs = txResponse.data;
+        console.log(`[STEP 2] Found ${txs.length} transactions`);
 
-        console.log("[STEP 6] Fetching prices...");
+        // Process coins (SOL only for simplicity, extendable to tokens)
+        const coins = new Map([["solana", { amount: solBalance, lastTx: txs.length > 0 ? txs[0].blockTime : null }]]);
+        console.log(`[STEP 3] Coins processed: ${coins.size}`);
+
+        // Fetch prices and calculate stats
+        console.log("[STEP 4] Fetching prices...");
         const coinData = await Promise.all(
             Array.from(coins.entries()).map(async ([mint, info]) => {
-                const coinId = mint === "So11111111111111111111111111111111111111112" ? "solana" : "usd-coin";
-                console.log(`[PRICE] Fetching for ${coinId}...`);
+                const coinId = "solana"; // Hardcoded for SOL; extend for tokens later
                 const buyPrice = info.lastTx ? await getHistoricalPrice(coinId, info.lastTx) : 0.01;
                 const currentPrice = await getCurrentPrice(coinId) || 0.01;
                 const fumbled = currentPrice > buyPrice ? (currentPrice - buyPrice) * info.amount : 0;
